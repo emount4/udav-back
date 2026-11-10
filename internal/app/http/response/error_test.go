@@ -28,6 +28,7 @@ func TestWriteErrorMapsWrappedApplicationError(t *testing.T) {
 		{apperror.NotFound, http.StatusNotFound},
 		{apperror.Conflict, http.StatusConflict},
 		{apperror.RateLimited, http.StatusTooManyRequests},
+		{apperror.Unavailable, http.StatusServiceUnavailable},
 	} {
 		t.Run(http.StatusText(test.status), func(t *testing.T) {
 			logger := testsupport.Logger{OnError: func(context.Context, []corelog.Field) {

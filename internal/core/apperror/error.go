@@ -9,6 +9,7 @@ const (
 	NotFound
 	Conflict
 	RateLimited
+	Unavailable
 )
 
 // Error описывает ожидаемую ошибку. Код и сообщение входят в публичный контракт API.

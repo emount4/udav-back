@@ -1,4 +1,4 @@
-package server
+package router
 
 import (
 	"net/http"
@@ -10,17 +10,24 @@ import (
 
 var errRouteNotFound = apperror.New(apperror.NotFound, "NOT_FOUND", "Маршрут не найден")
 
-func withJSONRouterErrors(mux *http.ServeMux, logger corelog.Logger) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		fallback, pattern := mux.Handler(r)
-		if pattern != "" || r.RequestURI == "*" {
-			// ServeHTTP заполняет шаблон маршрута и параметры для PathValue.
-			mux.ServeHTTP(w, r)
-			return
-		}
+type Router struct {
+	mux    *http.ServeMux
+	logger corelog.Logger
+}
 
-		fallback.ServeHTTP(&routerErrorWriter{ResponseWriter: w, request: r, logger: logger}, r)
-	})
+func New(logger corelog.Logger) *Router {
+	return &Router{mux: http.NewServeMux(), logger: logger}
+}
+
+func (rt *Router) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	fallback, pattern := rt.mux.Handler(r)
+	if pattern != "" || r.RequestURI == "*" {
+		// ServeHTTP заполняет шаблон маршрута и параметры для PathValue.
+		rt.mux.ServeHTTP(w, r)
+		return
+	}
+
+	fallback.ServeHTTP(&routerErrorWriter{ResponseWriter: w, request: r, logger: rt.logger}, r)
 }
 
 type routerErrorWriter struct {

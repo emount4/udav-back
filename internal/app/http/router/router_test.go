@@ -1,4 +1,4 @@
-package server
+package router_test
 
 import (
 	"encoding/json"
@@ -6,12 +6,17 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/emount4/udav-back/internal/app/http/health"
 	"github.com/emount4/udav-back/internal/app/http/middleware"
+	"github.com/emount4/udav-back/internal/app/http/router"
 	"github.com/emount4/udav-back/internal/app/http/testsupport"
 )
 
 func TestRouterErrorsUseAPIEnvelope(t *testing.T) {
-	handler := New(Config{}, testsupport.Logger{}).http.Handler
+	logger := testsupport.Logger{}
+	routes := router.New(logger)
+	health.RegisterRoutes(routes, health.New(logger, nil))
+	handler := middleware.RequestID(routes)
 	for _, test := range []struct {
 		method string
 		path   string
@@ -21,6 +26,7 @@ func TestRouterErrorsUseAPIEnvelope(t *testing.T) {
 	}{
 		{http.MethodGet, "/v1/missing", http.StatusNotFound, "NOT_FOUND", ""},
 		{http.MethodPost, "/health/live", http.StatusMethodNotAllowed, "METHOD_NOT_ALLOWED", "GET, HEAD"},
+		{http.MethodGet, "/health/ready", http.StatusServiceUnavailable, "POSTGRES_UNAVAILABLE", ""},
 	} {
 		t.Run(test.code, func(t *testing.T) {
 			recorder := httptest.NewRecorder()
@@ -51,12 +57,12 @@ func TestRouterErrorsUseAPIEnvelope(t *testing.T) {
 }
 
 func TestRouterPreservesMatchedHandlerResponse(t *testing.T) {
-	mux := http.NewServeMux()
-	mux.HandleFunc("GET /users/{id}", func(w http.ResponseWriter, r *http.Request) {
+	routes := router.New(testsupport.Logger{})
+	routes.Handle(http.MethodGet, "/users/{id}", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, r.PathValue("id"), http.StatusNotFound)
-	})
+	}))
 	recorder := httptest.NewRecorder()
-	withJSONRouterErrors(mux, testsupport.Logger{}).ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/users/player", nil))
+	routes.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/users/player", nil))
 	if recorder.Code != http.StatusNotFound || recorder.Body.String() != "player\n" {
 		t.Fatalf("matched response was changed: %d %q", recorder.Code, recorder.Body.String())
 	}

@@ -8,7 +8,7 @@
 
 | Действие | Команда |
 | --- | --- |
-| Собрать и запустить API и PostgreSQL | `docker compose up --build --wait` |
+| Собрать и запустить API, PostgreSQL и S3 | `docker compose up --build --wait` |
 | Посмотреть статус контейнеров | `docker compose ps` |
 | Следить за логами API | `docker compose logs -f api` |
 | Остановить контейнеры | `docker compose down` |

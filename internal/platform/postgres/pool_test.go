@@ -206,7 +206,8 @@ func servePoolQueries(peer net.Conn, queries []testQuery) error {
 	}
 
 	message, err := backend.Receive()
-	if errors.Is(err, io.EOF) {
+	// После всех ответов драйвер может закрыть соединение без сообщения Terminate.
+	if errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) {
 		return nil
 	}
 	if err != nil {

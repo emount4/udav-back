@@ -55,6 +55,8 @@ func statusForKind(kind apperror.Kind) int {
 		return http.StatusConflict
 	case apperror.RateLimited:
 		return http.StatusTooManyRequests
+	case apperror.Unavailable:
+		return http.StatusServiceUnavailable
 	default:
 		return 0
 	}

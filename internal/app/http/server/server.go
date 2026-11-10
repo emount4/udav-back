@@ -18,11 +18,9 @@ type Server struct {
 	logger corelog.Logger
 }
 
-func New(cfg Config, logger corelog.Logger) *Server {
-	mux := http.NewServeMux()
-	registerHealthRoutes(mux)
+func New(cfg Config, logger corelog.Logger, routes http.Handler) *Server {
 	handler := middleware.Chain(
-		withJSONRouterErrors(mux, logger),
+		routes,
 		middleware.RequestID,
 		middleware.Trace(logger),
 		middleware.Recover(logger),

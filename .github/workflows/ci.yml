@@ -1,0 +1,61 @@
+name: Backend CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  checks:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: go.sum
+
+      - name: Run Go tests and vet
+        run: |
+          go test ./...
+          go vet ./...
+
+      - name: Start Compose stack
+        id: compose
+        run: docker compose --env-file .env.example up --build --wait --wait-timeout 120
+
+      - name: Verify API readiness and database migration
+        run: |
+          status=$(curl --fail --silent --show-error --max-time 10 \
+            --output /dev/null --write-out '%{http_code}' http://127.0.0.1:8080/health/ready)
+          if [[ "$status" != 204 ]]; then
+            echo "Expected HTTP 204 from /health/ready, got $status"
+            exit 1
+          fi
+
+          applied=$(docker compose --env-file .env.example exec -T postgres sh -ec '
+            psql -XAt -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB" \
+              -c "SELECT EXISTS (SELECT 1 FROM goose_db_version WHERE version_id = 1 AND is_applied)"
+          ')
+          if [[ "$applied" != t ]]; then
+            echo "Expected Goose migration 00001 to be applied"
+            exit 1
+          fi
+
+      - name: Print Compose logs on failure
+        if: ${{ failure() && steps.compose.outcome != 'skipped' }}
+        run: docker compose --env-file .env.example logs --no-color
+
+      - name: Stop Compose stack
+        if: ${{ always() && steps.compose.outcome != 'skipped' }}
+        run: docker compose --env-file .env.example down --volumes
