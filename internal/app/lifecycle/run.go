@@ -3,11 +3,12 @@ package lifecycle
 import (
 	"context"
 	"fmt"
-	"io"
 	"os"
 	"os/signal"
+	"slices"
 	"syscall"
 
+	corelife "github.com/emount4/udav-back/internal/core/lifecycle"
 	corelog "github.com/emount4/udav-back/internal/core/logger"
 )
 
@@ -15,19 +16,23 @@ type Server interface {
 	Run(ctx context.Context) error
 }
 
-func Run(server Server, logger corelog.Logger, logFile io.Closer) {
+func Run(server Server, logger corelog.Logger, resources ...corelife.Resource) {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	runErr := server.Run(ctx)
-	if runErr != nil {
-		logger.Error(ctx, "API stopped", corelog.Field{Key: "error", Value: runErr})
+	failed := false
+	if err := server.Run(ctx); err != nil {
+		logger.Error(ctx, "API stopped", corelog.Field{Key: "error", Value: err})
+		failed = true
 	}
-	if err := logFile.Close(); err != nil {
-		fmt.Fprintln(os.Stderr, "close log file:", err)
-		os.Exit(1)
+	// Закрываем ресурсы в обратном порядке, чтобы логгер оставался доступным до конца остановки.
+	for _, resource := range slices.Backward(resources) {
+		if err := resource.Close(); err != nil {
+			fmt.Fprintln(os.Stderr, "close resource:", err)
+			failed = true
+		}
 	}
-	if runErr != nil {
+	if failed {
 		os.Exit(1)
 	}
 }

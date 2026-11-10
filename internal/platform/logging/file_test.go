@@ -7,6 +7,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/emount4/udav-back/internal/core/requestid"
 )
 
 type failedOutput struct{}
@@ -23,14 +25,14 @@ func TestFileLoggerWritesToEachAvailableDestination(t *testing.T) {
 		if err := file.Close(); err != nil {
 			t.Fatal(err)
 		}
-		logger.Error(t.Context(), "log entry")
+		logger.Error(requestid.WithContext(t.Context(), "request-123"), "log entry")
 		assertLogEntry(t, console.Bytes())
 	})
 
 	t.Run("console fails", func(t *testing.T) {
 		path := filepath.Join(t.TempDir(), "api.log")
 		logger, file := MustOpen(Config{FilePath: path}, failedOutput{})
-		logger.Error(t.Context(), "log entry")
+		logger.Error(requestid.WithContext(t.Context(), "request-123"), "log entry")
 		if err := file.Close(); err != nil {
 			t.Fatal(err)
 		}
@@ -45,12 +47,13 @@ func TestFileLoggerWritesToEachAvailableDestination(t *testing.T) {
 func assertLogEntry(t *testing.T, data []byte) {
 	t.Helper()
 	var entry struct {
-		Message string `json:"msg"`
+		Message   string `json:"msg"`
+		RequestID string `json:"requestId"`
 	}
 	if err := json.Unmarshal(data, &entry); err != nil {
 		t.Fatal(err)
 	}
-	if entry.Message != "log entry" {
+	if entry.Message != "log entry" || entry.RequestID != "request-123" {
 		t.Fatalf("unexpected log entry: %q", data)
 	}
 }

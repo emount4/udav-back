@@ -2,17 +2,16 @@ package server
 
 import (
 	"encoding/json"
-	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
 	"github.com/emount4/udav-back/internal/app/http/middleware"
-	"github.com/emount4/udav-back/internal/platform/logging"
+	"github.com/emount4/udav-back/internal/app/http/testsupport"
 )
 
 func TestRouterErrorsUseAPIEnvelope(t *testing.T) {
-	handler := New(Config{}, logging.New(io.Discard)).http.Handler
+	handler := New(Config{}, testsupport.Logger{}).http.Handler
 	for _, test := range []struct {
 		method string
 		path   string
@@ -57,7 +56,7 @@ func TestRouterPreservesMatchedHandlerResponse(t *testing.T) {
 		http.Error(w, r.PathValue("id"), http.StatusNotFound)
 	})
 	recorder := httptest.NewRecorder()
-	withJSONRouterErrors(mux, logging.New(io.Discard)).ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/users/player", nil))
+	withJSONRouterErrors(mux, testsupport.Logger{}).ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/users/player", nil))
 	if recorder.Code != http.StatusNotFound || recorder.Body.String() != "player\n" {
 		t.Fatalf("matched response was changed: %d %q", recorder.Code, recorder.Body.String())
 	}

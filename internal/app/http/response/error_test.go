@@ -1,7 +1,7 @@
 package response_test
 
 import (
-	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -11,9 +11,10 @@ import (
 	"testing"
 
 	"github.com/emount4/udav-back/internal/app/http/response"
+	"github.com/emount4/udav-back/internal/app/http/testsupport"
 	"github.com/emount4/udav-back/internal/core/apperror"
+	corelog "github.com/emount4/udav-back/internal/core/logger"
 	"github.com/emount4/udav-back/internal/core/requestid"
-	"github.com/emount4/udav-back/internal/platform/logging"
 )
 
 func TestWriteErrorMapsWrappedApplicationError(t *testing.T) {
@@ -29,14 +30,16 @@ func TestWriteErrorMapsWrappedApplicationError(t *testing.T) {
 		{apperror.RateLimited, http.StatusTooManyRequests},
 	} {
 		t.Run(http.StatusText(test.status), func(t *testing.T) {
-			var output bytes.Buffer
+			logger := testsupport.Logger{OnError: func(context.Context, []corelog.Field) {
+				t.Error("expected error was logged as a server failure")
+			}}
 			recorder := httptest.NewRecorder()
 			request := httptest.NewRequest(http.MethodPatch, "/v1/me", nil)
 			request = request.WithContext(requestid.WithContext(request.Context(), "request-123"))
 			expected := apperror.New(test.kind, "EXPECTED_FAILURE", "Публичное сообщение")
 			wrapped := fmt.Errorf("service context: %w", expected)
 
-			response.WriteError(recorder, request, logging.New(&output), wrapped)
+			response.WriteError(recorder, request, logger, wrapped)
 
 			if recorder.Code != test.status {
 				t.Fatalf("got status %d, want %d", recorder.Code, test.status)
@@ -54,28 +57,34 @@ func TestWriteErrorMapsWrappedApplicationError(t *testing.T) {
 			if body.Error.Code != expected.Code() || body.Error.Message != expected.Message() || body.Error.RequestID != "request-123" {
 				t.Fatalf("unexpected response: %+v", body.Error)
 			}
-			if output.Len() != 0 {
-				t.Fatalf("expected error was logged as a server failure: %s", output.String())
-			}
 		})
 	}
 }
 
 func TestWriteErrorKeepsUnexpectedCauseInLogs(t *testing.T) {
-	var output bytes.Buffer
+	var loggedError error
+	var loggedRequestID string
+	logger := testsupport.Logger{OnError: func(ctx context.Context, fields []corelog.Field) {
+		loggedRequestID = requestid.FromContext(ctx)
+		for _, field := range fields {
+			if field.Key == "error" {
+				loggedError, _ = field.Value.(error)
+			}
+		}
+	}}
 	recorder := httptest.NewRecorder()
 	request := httptest.NewRequest(http.MethodGet, "/v1/me", nil)
 	request = request.WithContext(requestid.WithContext(request.Context(), "request-456"))
 	cause := errors.New("database connection refused")
 
-	response.WriteError(recorder, request, logging.New(&output), fmt.Errorf("load profile: %w", cause))
+	response.WriteError(recorder, request, logger, fmt.Errorf("load profile: %w", cause))
 
 	body := recorder.Body.String()
 	if recorder.Code != http.StatusInternalServerError || !strings.Contains(body, "INTERNAL_ERROR") ||
 		!strings.Contains(body, "request-456") || strings.Contains(body, cause.Error()) {
 		t.Fatalf("unexpected response: %d %s", recorder.Code, body)
 	}
-	if !strings.Contains(output.String(), cause.Error()) || !strings.Contains(output.String(), "request-456") {
-		t.Fatalf("cause or request ID missing from the log: %s", output.String())
+	if !errors.Is(loggedError, cause) || loggedRequestID != "request-456" {
+		t.Fatalf("cause or request ID missing from the log: %v, %q", loggedError, loggedRequestID)
 	}
 }

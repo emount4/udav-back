@@ -7,10 +7,11 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/emount4/udav-back/internal/core/lifecycle"
 	corelog "github.com/emount4/udav-back/internal/core/logger"
 )
 
-func MustOpen(cfg Config, console io.Writer) (corelog.Logger, io.Closer) {
+func MustOpen(cfg Config, console io.Writer) (corelog.Logger, lifecycle.Resource) {
 	if err := os.MkdirAll(filepath.Dir(cfg.FilePath), 0o750); err != nil {
 		panic(fmt.Errorf("create log directory: %w", err))
 	}
