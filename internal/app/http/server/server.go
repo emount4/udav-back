@@ -1,4 +1,4 @@
-package httpserver
+package server
 
 import (
 	"context"
@@ -9,27 +9,29 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/emount4/udav-back/internal/core"
+	"github.com/emount4/udav-back/internal/app/http/middleware"
+	corelog "github.com/emount4/udav-back/internal/core/logger"
 )
 
 type Server struct {
 	http   *http.Server
-	logger core.Logger
+	logger corelog.Logger
 }
 
-type Config struct {
-	Port           int
-	AllowedOrigins []string
-}
-
-func New(cfg Config, logger core.Logger) *Server {
+func New(cfg Config, logger corelog.Logger) *Server {
 	mux := http.NewServeMux()
 	registerHealthRoutes(mux)
+	handler := middleware.Chain(
+		withJSONRouterErrors(mux, logger),
+		middleware.RequestID,
+		middleware.Trace(logger),
+		middleware.Recover(logger),
+	)
 
 	return &Server{
 		http: &http.Server{
 			Addr:              ":" + strconv.Itoa(cfg.Port),
-			Handler:           mux,
+			Handler:           handler,
 			ReadHeaderTimeout: 5 * time.Second,
 			ErrorLog:          log.New(errorLogWriter{logger: logger}, "", 0),
 		},
@@ -47,7 +49,7 @@ func (s *Server) Run(ctx context.Context) error {
 	go func() {
 		serveErr <- s.http.Serve(listener)
 	}()
-	s.logger.Info(ctx, "API listening", core.Field{Key: "address", Value: listener.Addr().String()})
+	s.logger.Info(ctx, "API listening", corelog.Field{Key: "address", Value: listener.Addr().String()})
 
 	select {
 	case err := <-serveErr:

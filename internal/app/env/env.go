@@ -1,4 +1,4 @@
-package config
+package env
 
 import (
 	"errors"
@@ -10,11 +10,15 @@ import (
 	"github.com/joho/godotenv"
 )
 
-type Env struct {
+type Snapshot struct {
 	values map[string]string
 }
 
-func MustReadEnv() Env {
+func (s Snapshot) Get(key string) string {
+	return s.values[key]
+}
+
+func MustRead() Snapshot {
 	values, err := readDotenv()
 	if err != nil {
 		panic(fmt.Errorf("read environment: %w", err))
@@ -31,7 +35,7 @@ func MustReadEnv() Env {
 		values[key] = value
 	}
 
-	return Env{values: values}
+	return Snapshot{values: values}
 }
 
 func readDotenv() (map[string]string, error) {
@@ -46,7 +50,7 @@ func readDotenv() (map[string]string, error) {
 
 	values, err := godotenv.Parse(file)
 	if err != nil {
-		// Parser errors can contain values from the file.
+		// Сообщение парсера может содержать секреты из файла.
 		return nil, errors.New("could not parse .env")
 	}
 	return values, nil

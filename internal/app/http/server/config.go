@@ -1,15 +1,18 @@
-package config
+package server
 
 import (
 	"strconv"
 	"strings"
-
-	"github.com/emount4/udav-back/internal/app/httpserver"
 )
 
-func MustLoadHTTP(env Env) httpserver.Config {
+type Config struct {
+	Port           int
+	AllowedOrigins []string
+}
+
+func MustLoadConfig(get func(string) string) Config {
 	port := 8080
-	if rawPort := env.values["PORT"]; rawPort != "" {
+	if rawPort := get("PORT"); rawPort != "" {
 		value, err := strconv.Atoi(rawPort)
 		if err != nil || value < 1 || value > 65535 {
 			panic("load HTTP config: PORT must be an integer from 1 to 65535")
@@ -18,13 +21,13 @@ func MustLoadHTTP(env Env) httpserver.Config {
 	}
 
 	var origins []string
-	for _, entry := range strings.Split(env.values["ALLOWED_ORIGINS"], ",") {
+	for _, entry := range strings.Split(get("ALLOWED_ORIGINS"), ",") {
 		if origin := strings.TrimSpace(entry); origin != "" {
 			origins = append(origins, origin)
 		}
 	}
 
-	return httpserver.Config{
+	return Config{
 		Port:           port,
 		AllowedOrigins: origins,
 	}

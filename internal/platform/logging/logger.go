@@ -5,35 +5,39 @@ import (
 	"io"
 	"log/slog"
 
-	"github.com/emount4/udav-back/internal/core"
+	corelog "github.com/emount4/udav-back/internal/core/logger"
+	"github.com/emount4/udav-back/internal/core/requestid"
 )
 
 type logger struct {
 	base *slog.Logger
 }
 
-func New(output io.Writer) core.Logger {
+func New(output io.Writer) corelog.Logger {
 	return &logger{base: slog.New(slog.NewJSONHandler(output, nil))}
 }
 
-func (l *logger) Debug(ctx context.Context, message string, fields ...core.Field) {
+func (l *logger) Debug(ctx context.Context, message string, fields ...corelog.Field) {
 	l.write(ctx, slog.LevelDebug, message, fields)
 }
 
-func (l *logger) Info(ctx context.Context, message string, fields ...core.Field) {
+func (l *logger) Info(ctx context.Context, message string, fields ...corelog.Field) {
 	l.write(ctx, slog.LevelInfo, message, fields)
 }
 
-func (l *logger) Warn(ctx context.Context, message string, fields ...core.Field) {
+func (l *logger) Warn(ctx context.Context, message string, fields ...corelog.Field) {
 	l.write(ctx, slog.LevelWarn, message, fields)
 }
 
-func (l *logger) Error(ctx context.Context, message string, fields ...core.Field) {
+func (l *logger) Error(ctx context.Context, message string, fields ...corelog.Field) {
 	l.write(ctx, slog.LevelError, message, fields)
 }
 
-func (l *logger) write(ctx context.Context, level slog.Level, message string, fields []core.Field) {
-	attrs := make([]slog.Attr, 0, len(fields))
+func (l *logger) write(ctx context.Context, level slog.Level, message string, fields []corelog.Field) {
+	attrs := make([]slog.Attr, 0, len(fields)+1)
+	if requestID := requestid.FromContext(ctx); requestID != "" {
+		attrs = append(attrs, slog.String("requestId", requestID))
+	}
 	for _, field := range fields {
 		attrs = append(attrs, slog.Any(field.Key, field.Value))
 	}

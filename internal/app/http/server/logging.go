@@ -1,14 +1,14 @@
-package httpserver
+package server
 
 import (
 	"context"
 	"strings"
 
-	"github.com/emount4/udav-back/internal/core"
+	corelog "github.com/emount4/udav-back/internal/core/logger"
 )
 
 type errorLogWriter struct {
-	logger core.Logger
+	logger corelog.Logger
 }
 
 func (w errorLogWriter) Write(message []byte) (int, error) {
